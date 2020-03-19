@@ -1,0 +1,27 @@
+rules:
+  CallbackFuzz:
+    description: Test for open redirects and potential SSRFs by checking for certain responses or callbacks to your server
+    injections:
+      - https://rzu97r6tmyzmgth4lgeb265ylprgf5.burpcollaborator.net
+      - //rzu97r6tmyzmgth4lgeb265ylprgf5.burpcollaborator.net
+      - https://swiftype.com.rzu97r6tmyzmgth4lgeb265ylprgf5.burpcollaborator.net
+    expectation:
+      responseContents:
+        - a0aru8x5g9zt3w4lngnvk8zjjgza0aru8x5g9zt3w4lngnvk8zjjgz
+  SqlInjectionCheck:
+    description: Test for potential SQL injections by injecting characters to break SQL statements
+    injections:
+      - "'"
+      - )
+    expectation:
+      responseCodes:
+        - 500
+  XssDetection:
+    description: Test for XSS by discovering potentially unsanitized/encoded input in responses
+    injections:
+      - '"><asd>'
+    expectation:
+      responseContents:
+        - '"><asd>'
+      responseHeaders:
+        Content-Type: html
