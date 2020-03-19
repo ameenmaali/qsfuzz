@@ -5,7 +5,7 @@ inject, and what is the outcome you expect if that injection is successful. Pass
 and qsfuzz will replace the query string values with your injections to determine if it's vulnerable.
 
 qsfuzz injections are done one-at-a-time for URLs with multiple query strings to ensure requests aren't broken if certain
-parameters are relied on.
+parameters are relied on. URLs that don't have query strings will be ignored.
 
 ## Installation
 ```
@@ -13,7 +13,7 @@ go get github.com/ameenmaali/qsfuzz
 ```
 
 ## Usage
-qsfuzz takes URLs from stdin, of which you will most likely want in a file such as:
+qsfuzz takes URLs (with query strings) from stdin, of which you will most likely want in a file such as:
 ```
 $ cat file.txt
 https://google.com/home/?q=2&d=asd
@@ -21,8 +21,8 @@ https://my.site/profile?param1=1&param2=2
 https://my.site/profile?param3=3
 ```
 
-qsfuzz also requires a config file (see `config-example.yaml` for an example) which contains the relevant rules. This 
-should be a YAML file and formatted such as:
+qsfuzz also requires a config file (see `config-example.yaml` for an example) which contains the relevant rules to
+evaluate against. This should be a YAML file and formatted such as:
 
 ```
 $ cat config.yaml
@@ -48,9 +48,34 @@ rules:
         Content-Type: html
 ```
 
-*Important Notes for Config files*
+#### Important Notes for Config files
 
-You can have as many rules as you'd like (of course this will slow down evaluations)
+You can have as many rules as you'd like (of course this will slow down evaluations). These are the currently supported fields,
+annotated with comments above the field:
+
+```
+# This should never change, and indicates the start of the rules list
+rules:
+  # This should be set to the rule's name you are defining
+  ruleName:
+    # This should be a short description of what the rule's purpose is
+    description: 
+  # This is a list (1 or more) of injection values to inject within query strings
+  injections:
+    -
+    -
+  # There are several fields within expectation that will be defined below. At least 1 of the below categories must be present to be evaluated
+  expectation:
+    # This is a list (1 or more) of which include a value within a response body that should be present to indicate it is vulnerable.
+    responseContents:
+      -
+    # This is a list (1 or more) of which include a response code that should be present to indicate it is vulnerable.
+    responseCodes:
+      -
+    # This is a list (1 or more) of which include a response header that should be present to indicate it is vulnerable.
+    responseHeaders:
+      -
+```
 
 For the `expectation` section, 3 types of matching are supported: `responseContents`, `responseCodes`, and `responseHeaders`
   - `responseContents` searches the response body for the contents within it
@@ -82,20 +107,30 @@ In order to be successful, one of the 2 `responseContents` must be matched, as w
 ```
 $ qsfuzz -h
 Usage of qsfuzz:
+  -H string
+    	Headers to add in all requests. Multiple should be separated by semi-colon
   -c string
     	File path to config file, which contains fuzz rules
   -config string
     	File path to config file, which contains fuzz rules
   -cookies string
     	Cookies to add in all requests
-  -H string
-    	Headers to add in all requests. Multiple should be separated by semi-colon
+  -d	
+        Send requests with decoded query strings/parameters (this could cause many errors/bad requests)
+  -debug
+    	Debug/verbose mode to print more info for failed/malformed URLs or requests
+  -decode
+    	Send requests with decoded query strings/parameters (this could cause many errors/bad requests)
   -headers string
     	Headers to add in all requests. Multiple should be separated by semi-colon
-  -v	
-        Verbose mode to print more info for failed/malformed URLs or requests
-  -verbose
-    	Verbose mode to print more info for failed/malformed URLs or requests
+  -s	
+        Only print successful evaluations (i.e. mute status updates). Note these updates print to stderr, and won't be saved if saving stdout to files
+  -silent
+    	Only print successful evaluations (i.e. mute status updates). Note these updates print to stderr, and won't be saved if saving stdout to files
+  -w int
+    	Set the concurrency/worker count (default 25)
+  -workers int
+    	Set the concurrency/worker count (default 25)
 ```
 
 ## Examples

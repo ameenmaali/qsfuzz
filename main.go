@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/fatih/color"
-	"github.com/spf13/viper"
 	"net/http"
 	"net/url"
 	"os"
@@ -70,26 +69,6 @@ var config Config
 var opts CliOptions
 var evaluationResults []EvaluationResult
 
-func loadConfig(configFile string) error {
-	// In order to ensure dots (.) are not considered as delimiters, set delimiter
-	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
-
-	v.SetConfigFile(configFile)
-	if err := v.ReadInConfig(); err != nil {
-		return err
-	}
-
-	if err := v.Unmarshal(&config); err != nil {
-		return err
-	}
-
-	if err := v.UnmarshalKey("rules", &config); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func runEvaluation(resp Response, ruleData Rule, injectedUrl string, ruleName string) RuleEvaluation {
 	headersExpected := false
 	bodyExpected := false
@@ -116,7 +95,7 @@ func runEvaluation(resp Response, ruleData Rule, injectedUrl string, ruleName st
 
 	if bodyExpected {
 		for _, content := range ruleData.Expectation.Contents {
-			if strings.Contains(resp.Body, content) {
+			if strings.Contains(strings.ToLower(resp.Body), strings.ToLower(content)) {
 				ruleEvaluation.ChecksMatched += 1
 			}
 		}
@@ -132,13 +111,13 @@ func runEvaluation(resp Response, ruleData Rule, injectedUrl string, ruleName st
 
 	if headersExpected {
 		for header, value := range ruleData.Expectation.Headers {
-			if strings.Contains(resp.Headers.Get(header), value) {
+			if strings.Contains(strings.ToLower(resp.Headers.Get(header)), strings.ToLower(value)) {
 				ruleEvaluation.ChecksMatched += 1
 			}
 		}
 	}
 
-	if ruleEvaluation.ChecksMatched >= numOfChecks {
+	if ruleEvaluation.ChecksMatched > 0 && ruleEvaluation.ChecksMatched >= numOfChecks {
 		ruleEvaluation.Successful = true
 		u, err := url.QueryUnescape(injectedUrl)
 		if err != nil {
@@ -238,7 +217,6 @@ func main() {
 			if injectedUrls == nil {
 				continue
 			}
-
 			for _, injectedUrl := range injectedUrls {
 				tasks <- TaskData{RuleName: rule, RuleData: ruleData, InjectedUrl: injectedUrl}
 			}

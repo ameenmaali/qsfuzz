@@ -2,12 +2,13 @@ rules:
   CallbackFuzz:
     description: Test for open redirects and potential SSRFs by checking for certain responses or callbacks to your server
     injections:
-      - https://jl81tjsl8qle2l3w7803oyrq7hda1z.burpcollaborator.net
-      - //jl81tjsl8qle2l3w7803oyrq7hda1z.burpcollaborator.net
-      - https://n33ma.com.jl81tjsl8qle2l3w7803oyrq7hda1z.burpcollaborator.net
+      - http://example.net
+      - //example.net
+      - https://company.com.example.net
+      - "@example.net"
     expectation:
       responseContents:
-        - a0aru8x5g9zt3w4lngnvk8zjlgz
+        - Example Domain
   SqlInjectionCheck:
     description: Test for potential SQL injections by injecting characters to break SQL statements
     injections:
@@ -22,6 +23,6 @@ rules:
       - '"><h2>asd</h2>'
     expectation:
       responseContents:
-        - '"><h2>asd</h2>'
+        - '<h2>asd</h2>'
       responseHeaders:
         Content-Type: html

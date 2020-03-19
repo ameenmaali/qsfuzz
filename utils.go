@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/spf13/viper"
 	"net/url"
 	"os"
 	"sort"
@@ -54,6 +55,26 @@ func VerifyFlags(options *CliOptions) error {
 			headers[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 		}
 		config.Headers = headers
+	}
+
+	return nil
+}
+
+func loadConfig(configFile string) error {
+	// In order to ensure dots (.) are not considered as delimiters, set delimiter
+	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
+
+	v.SetConfigFile(configFile)
+	if err := v.ReadInConfig(); err != nil {
+		return err
+	}
+
+	if err := v.Unmarshal(&config); err != nil {
+		return err
+	}
+
+	if err := v.UnmarshalKey("rules", &config); err != nil {
+		return err
 	}
 
 	return nil
