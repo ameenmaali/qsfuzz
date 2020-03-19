@@ -6,20 +6,25 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/viper"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
-type cliOptions struct {
-	configFilename string
-	cookies        string
-	headers        string
-	verbose        bool
+type CliOptions struct {
+	ConfigFile string
+	Cookies        string
+	Headers        string
+	Verbose        bool
+	Concurrency int
+	DecodedParams bool
+	SilentMode bool
 }
 
 type Config struct {
-	Rules map[string]Rule `mapstructure:"rules"`
+	Rules   map[string]Rule `mapstructure:"rules"`
 	Cookies string
 	Headers map[string]string
 }
@@ -31,31 +36,39 @@ type Rule struct {
 }
 
 type ExpectedResponse struct {
-	Contents []string                 `mapstructure:"responseContents"`
-	Codes    []int                    `mapstructure:"responseCodes"`
+	Contents []string          `mapstructure:"responseContents"`
+	Codes    []int             `mapstructure:"responseCodes"`
 	Headers  map[string]string `mapstructure:"responseHeaders"`
 }
 
 type Response struct {
 	StatusCode int
-	Body   string
+	Body       string
 	Headers    http.Header
 }
 
-type settings struct {
-	SupportEnabled         bool
-	ThirdPartyCrawlEnabled bool
-	CrawlTimeThreshold     int
-}
-
 type RuleEvaluation struct {
-	ChecksMatched int
+	ChecksMatched  int
 	SuccessMessage string
-	Successful bool
+	Successful     bool
 }
 
+type EvaluationResult struct {
+	RuleName string
+	RuleDescription string
+	InjectedUrl string
+}
+
+type TaskData struct {
+	InjectedUrl string
+	RuleData Rule
+	RuleName string
+}
+
+var requestsSent int
 var config Config
-var Settings settings
+var opts CliOptions
+var evaluationResults []EvaluationResult
 
 func loadConfig(configFile string) error {
 	// In order to ensure dots (.) are not considered as delimiters, set delimiter
@@ -77,7 +90,7 @@ func loadConfig(configFile string) error {
 	return nil
 }
 
-func runEvaluations(resp Response, ruleData Rule, injectedUrl string, ruleName string) RuleEvaluation {
+func runEvaluation(resp Response, ruleData Rule, injectedUrl string, ruleName string) RuleEvaluation {
 	headersExpected := false
 	bodyExpected := false
 	codeExpected := false
@@ -127,18 +140,20 @@ func runEvaluations(resp Response, ruleData Rule, injectedUrl string, ruleName s
 
 	if ruleEvaluation.ChecksMatched >= numOfChecks {
 		ruleEvaluation.Successful = true
-		ruleEvaluation.SuccessMessage = fmt.Sprintf("[%v] successful match for %v\n", ruleName, injectedUrl)
+		u, err := url.QueryUnescape(injectedUrl)
+		if err != nil {
+			u = injectedUrl
+		}
+		ruleEvaluation.SuccessMessage = fmt.Sprintf("[%v] successful match for %v\n", ruleName, u)
+		evaluationResults = append(evaluationResults, EvaluationResult{RuleName: ruleName, RuleDescription: ruleData.Description, InjectedUrl: injectedUrl})
 	}
 
 	return ruleEvaluation
 }
 
-
 func main() {
 	printGreen := color.New(color.FgGreen).PrintfFunc()
 	printRed := color.New(color.FgRed).PrintfFunc()
-
-	opts := cliOptions{}
 
 	err := VerifyFlags(&opts)
 	if err != nil {
@@ -147,8 +162,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := loadConfig(opts.configFilename); err != nil {
-		fmt.Println("Failed loading settings:", err)
+	if err := loadConfig(opts.ConfigFile); err != nil {
+		fmt.Println("Failed loading config:", err)
 		os.Exit(1)
 	}
 
@@ -158,40 +173,78 @@ func main() {
 		os.Exit(1)
 	}
 
+	if !opts.SilentMode {
+		fmt.Fprintf(os.Stderr, "There are %v unique URL/Query String combinations. Time to inject each query string, 1 at a time!\n", len(urls))
+	}
+
+	tasks := make(chan TaskData)
+
 	var wg sync.WaitGroup
-	for _, u := range urls {
+
+	startTime := time.Now()
+
+	for i := 0; i < opts.Concurrency; i++ {
 		wg.Add(1)
-		go func(site string) {
+		go func() {
 			defer wg.Done()
-			for rule, ruleData := range config.Rules {
-				injectedUrls, err := getInjectedUrls(site, ruleData.Injections)
+
+			for {
+				task, ok := <- tasks
+				// Return if tasks are complete
+				if !ok {
+					return
+				}
+
+				resp, err := sendRequest(task.InjectedUrl)
 				if err != nil {
-					if opts.verbose {
-						printRed("[%v] error parsing URL or query parameters for\n", rule)
+					continue
+				}
+				//fmt.Println(task.InjectedUrl)
+
+				requestsSent += 1
+
+				// Send an update every 1,000 requests
+				if !opts.SilentMode {
+					if requestsSent % 1000 == 0 {
+						secondsElapsed := time.Since(startTime).Seconds()
+						fmt.Fprintf(os.Stderr, "%v requests sent: %v requests per second\n", requestsSent, int(float64(requestsSent) / secondsElapsed))
+					}
+				}
+
+				if err != nil {
+					if opts.Verbose {
+						printRed("error sending HTTP request (%v)\n", task.InjectedUrl)
 					}
 					continue
 				}
-				if injectedUrls == nil {
-					continue
-				}
 
-				for _, injectedUrl := range injectedUrls {
-					resp, err := sendRequest(injectedUrl)
-					if err != nil {
-						if opts.verbose {
-							printRed("error sending HTTP request (%v)\n", injectedUrl)
-						}
-						continue
-					}
-
-					ruleEvaluation := runEvaluations(resp, ruleData, injectedUrl, rule)
-					if ruleEvaluation.Successful {
-						printGreen(ruleEvaluation.SuccessMessage)
-					}
-
+				ruleEvaluation := runEvaluation(resp, task.RuleData, task.InjectedUrl, task.RuleName)
+				if ruleEvaluation.Successful {
+					printGreen(ruleEvaluation.SuccessMessage)
 				}
 			}
-		}(u)
+		}()
 	}
+
+	for _, u := range urls {
+		for rule, ruleData := range config.Rules {
+			injectedUrls, err := getInjectedUrls(u, ruleData.Injections)
+			if err != nil {
+				if opts.Verbose {
+					printRed("[%v] error parsing URL or query parameters for\n", rule)
+				}
+				continue
+			}
+			if injectedUrls == nil {
+				continue
+			}
+
+			for _, injectedUrl := range injectedUrls {
+				tasks <- TaskData{RuleName: rule, RuleData: ruleData, InjectedUrl: injectedUrl}
+			}
+		}
+	}
+
+	close(tasks)
 	wg.Wait()
 }

@@ -29,8 +29,15 @@ func sendRequest(u string) (Response, error) {
 		return response, err
 	}
 
-	// temporary. Needs to be an option
 	request.Header.Add("User-Agent", "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.100 Safari/537.36")
+
+	// Add headers passed in as arguments
+	for header, value := range config.Headers {
+		request.Header.Add(header, value)
+	}
+
+	// Add cookies passed in as arguments
+	request.Header.Add("Cookie", config.Cookies)
 
 	resp, err := httpClient.Do(request)
 	if err != nil {
@@ -54,4 +61,3 @@ func sendRequest(u string) (Response, error) {
 
 	return response, err
 }
-

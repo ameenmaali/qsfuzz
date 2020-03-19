@@ -11,31 +11,39 @@ import (
 	"strings"
 )
 
-func VerifyFlags(options *cliOptions) error {
-	flag.StringVar(&options.configFilename, "c", "", "File path to config file, which contains fuzz rules")
-	flag.StringVar(&options.configFilename, "config", "", "File path to config file, which contains fuzz rules")
+func VerifyFlags(options *CliOptions) error {
+	flag.StringVar(&options.ConfigFile, "c", "", "File path to config file, which contains fuzz rules")
+	flag.StringVar(&options.ConfigFile, "config", "", "File path to config file, which contains fuzz rules")
 
-	flag.StringVar(&options.cookies, "cookies", "", "Cookies to add in all requests")
+	flag.StringVar(&options.Cookies, "cookies", "", "Cookies to add in all requests")
 
-	flag.StringVar(&options.headers, "H", "", "Headers to add in all requests. Multiple should be separated by semi-colon")
-	flag.StringVar(&options.headers, "headers", "", "Headers to add in all requests. Multiple should be separated by semi-colon")
+	flag.StringVar(&options.Headers, "H", "", "Headers to add in all requests. Multiple should be separated by semi-colon")
+	flag.StringVar(&options.Headers, "headers", "", "Headers to add in all requests. Multiple should be separated by semi-colon")
 
-	flag.BoolVar(&options.verbose, "v", false, "Verbose mode to print more info for failed/malformed URLs or requests")
-	flag.BoolVar(&options.verbose, "verbose", false, "Verbose mode to print more info for failed/malformed URLs or requests")
+	flag.BoolVar(&options.Verbose, "debug", false, "Debug/verbose mode to print more info for failed/malformed URLs or requests")
+
+	flag.BoolVar(&options.SilentMode, "s", false, "Only print successful evaluations (i.e. mute status updates). Note these updates print to stderr, and won't be saved if saving stdout to files")
+	flag.BoolVar(&options.SilentMode, "silent", false, "Only print successful evaluations (i.e. mute status updates). Note these updates print to stderr, and won't be saved if saving stdout to files")
+
+	flag.BoolVar(&options.DecodedParams, "d", false, "Send requests with decoded query strings/parameters (this could cause many errors/bad requests)")
+	flag.BoolVar(&options.DecodedParams, "decode", false, "Send requests with decoded query strings/parameters (this could cause many errors/bad requests)")
+
+	flag.IntVar(&options.Concurrency, "w", 25, "Set the concurrency/worker count")
+	flag.IntVar(&options.Concurrency, "workers", 25, "Set the concurrency/worker count")
 
 	flag.Parse()
 
-	if options.configFilename == "" {
+	if options.ConfigFile == "" {
 		return errors.New("config file flag is required")
 	}
 
-	if options.cookies != "" {
-		config.Cookies = options.cookies
+	if options.Cookies != "" {
+		config.Cookies = options.Cookies
 	}
 
-	if options.headers != "" {
+	if options.Headers != "" {
 		headers := make(map[string]string)
-		rawHeaders := strings.Split(options.headers, ";")
+		rawHeaders := strings.Split(options.Headers, ";")
 		for _, header := range rawHeaders {
 			var parts []string
 			if strings.Contains(header, ": ") {
@@ -64,9 +72,7 @@ func GetUrlsFromFile() ([]string, error) {
 			continue
 		}
 
-		// Go's maps aren't ordered, but we want to use all the param names
-		// as part of the key to output only unique requests. To do that, put
-		// them into a slice and then sort it.
+		// Use query string keys when sorting in order to get unique URL & Query String combinations
 		params := make([]string, 0)
 		for param, _ := range u.Query() {
 			params = append(params, param)
@@ -113,7 +119,11 @@ func getInjectedUrls(fullUrl string, ruleInjections []string) ([]string, error) 
 					continue
 				}
 
-				u.RawQuery = decodedQs
+				if opts.DecodedParams {
+					u.RawQuery = decodedQs
+				} else {
+					u.RawQuery = queryStrings.Encode()
+				}
 
 				replacedUrls = append(replacedUrls, u.String())
 
@@ -123,4 +133,8 @@ func getInjectedUrls(fullUrl string, ruleInjections []string) ([]string, error) 
 		}
 	}
 	return replacedUrls, nil
+}
+
+func toHtml() {
+
 }

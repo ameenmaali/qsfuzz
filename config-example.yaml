@@ -2,12 +2,12 @@ rules:
   CallbackFuzz:
     description: Test for open redirects and potential SSRFs by checking for certain responses or callbacks to your server
     injections:
-      - https://rzu97r6tmyzmgth4lgeb265ylprgf5.burpcollaborator.net
-      - //rzu97r6tmyzmgth4lgeb265ylprgf5.burpcollaborator.net
-      - https://swiftype.com.rzu97r6tmyzmgth4lgeb265ylprgf5.burpcollaborator.net
+      - https://jl81tjsl8qle2l3w7803oyrq7hda1z.burpcollaborator.net
+      - //jl81tjsl8qle2l3w7803oyrq7hda1z.burpcollaborator.net
+      - https://n33ma.com.jl81tjsl8qle2l3w7803oyrq7hda1z.burpcollaborator.net
     expectation:
       responseContents:
-        - a0aru8x5g9zt3w4lngnvk8zjjgza0aru8x5g9zt3w4lngnvk8zjjgz
+        - a0aru8x5g9zt3w4lngnvk8zjlgz
   SqlInjectionCheck:
     description: Test for potential SQL injections by injecting characters to break SQL statements
     injections:
@@ -19,9 +19,9 @@ rules:
   XssDetection:
     description: Test for XSS by discovering potentially unsanitized/encoded input in responses
     injections:
-      - '"><asd>'
+      - '"><h2>asd</h2>'
     expectation:
       responseContents:
-        - '"><asd>'
+        - '"><h2>asd</h2>'
       responseHeaders:
         Content-Type: html
