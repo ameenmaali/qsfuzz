@@ -13,13 +13,13 @@ import (
 )
 
 type CliOptions struct {
-	ConfigFile string
-	Cookies        string
-	Headers        string
-	Verbose        bool
-	Concurrency int
+	ConfigFile    string
+	Cookies       string
+	Headers       string
+	Debug         bool
+	Concurrency   int
 	DecodedParams bool
-	SilentMode bool
+	SilentMode    bool
 }
 
 type Config struct {
@@ -53,15 +53,15 @@ type RuleEvaluation struct {
 }
 
 type EvaluationResult struct {
-	RuleName string
+	RuleName        string
 	RuleDescription string
-	InjectedUrl string
+	InjectedUrl     string
 }
 
 type TaskData struct {
 	InjectedUrl string
-	RuleData Rule
-	RuleName string
+	RuleData    Rule
+	RuleName    string
 }
 
 var requestsSent int
@@ -133,6 +133,7 @@ func runEvaluation(resp Response, ruleData Rule, injectedUrl string, ruleName st
 func main() {
 	printGreen := color.New(color.FgGreen).PrintfFunc()
 	printRed := color.New(color.FgRed).PrintfFunc()
+	printCyan := color.New(color.FgCyan).FprintfFunc()
 
 	err := VerifyFlags(&opts)
 	if err != nil {
@@ -153,7 +154,7 @@ func main() {
 	}
 
 	if !opts.SilentMode {
-		fmt.Fprintf(os.Stderr, "There are %v unique URL/Query String combinations. Time to inject each query string, 1 at a time!\n", len(urls))
+		printCyan(os.Stderr, "There are %v unique URL/Query String combinations. Time to inject each query string, 1 at a time!\n", len(urls))
 	}
 
 	tasks := make(chan TaskData)
@@ -168,7 +169,7 @@ func main() {
 			defer wg.Done()
 
 			for {
-				task, ok := <- tasks
+				task, ok := <-tasks
 				// Return if tasks are complete
 				if !ok {
 					return
@@ -178,20 +179,18 @@ func main() {
 				if err != nil {
 					continue
 				}
-				//fmt.Println(task.InjectedUrl)
 
 				requestsSent += 1
-
 				// Send an update every 1,000 requests
 				if !opts.SilentMode {
-					if requestsSent % 1000 == 0 {
+					if requestsSent%1000 == 0 {
 						secondsElapsed := time.Since(startTime).Seconds()
-						fmt.Fprintf(os.Stderr, "%v requests sent: %v requests per second\n", requestsSent, int(float64(requestsSent) / secondsElapsed))
+						fmt.Fprintf(os.Stderr, "%v requests sent: %v requests per second\n", requestsSent, int(float64(requestsSent)/secondsElapsed))
 					}
 				}
 
 				if err != nil {
-					if opts.Verbose {
+					if opts.Debug {
 						printRed("error sending HTTP request (%v)\n", task.InjectedUrl)
 					}
 					continue
@@ -209,7 +208,7 @@ func main() {
 		for rule, ruleData := range config.Rules {
 			injectedUrls, err := getInjectedUrls(u, ruleData.Injections)
 			if err != nil {
-				if opts.Verbose {
+				if opts.Debug {
 					printRed("[%v] error parsing URL or query parameters for\n", rule)
 				}
 				continue
@@ -225,4 +224,7 @@ func main() {
 
 	close(tasks)
 	wg.Wait()
+
+	secondsElapsed := time.Since(startTime).Seconds()
+	printCyan(os.Stderr, "Evaluations complete! %v requests sent: %v requests per second\n", requestsSent, int(float64(requestsSent)/secondsElapsed))
 }
