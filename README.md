@@ -103,6 +103,33 @@ rules:
 The above rule will inject `"><h2>asd</h2>` and `<asd>test</asd>` in query string values, and check for `<h2>asd</h2>` OR `<asd>test</asd>` in the response contents.
 In order to be successful, one of the 2 `responseContents` must be matched, as well as the `Content-Type` response header including `html` within it.
 
+### Templating
+There is rudimentary templating functionality within the rule's injection points, which can be done by inserting the supported variable in square brackets `[[var]]`. 
+This is to allow for some dynamic payloads where you need them. Here are the following fields supported within the templating (these are all related to the URL that is 
+being assessed at that point in time):
+- fullurl
+- domain
+- path
+
+An example on using these are:
+
+```
+rules:
+  CallbackFuzz:
+    description: Test for open redirects and potential SSRFs by checking for certain responses or callbacks to your server
+    injections:
+      - "http://[[domain]].example.net/"
+      - "//example.net?targetUrl=[[fullurl]]"
+      - "https://example.net?target=[[domain]][[path]]"
+      - "@example.net"
+    expectation:
+      responseContents:
+        - Example Domain
+```
+
+This is particularly valuable in blind attacks, such as blind SSRF, where `qsfuzz` won't necessarily know whether it's successful, but your callback server receives a hit. 
+You can add some data, such as the above supported parameters, within the injection to also send the vulnerable, injected URL within the request.
+
 ## Help
 ```
 $ qsfuzz -h

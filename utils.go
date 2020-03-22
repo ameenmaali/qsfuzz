@@ -133,11 +133,8 @@ func getInjectedUrls(fullUrl string, ruleInjections []string) ([]string, error) 
 		for qs, values := range queryStrings {
 			for index, val := range values {
 				// Check if templating is used in the injection, if so substitute it
-				templatedValue := checkTemplate(injection, u)
-				if templatedValue != "" {
-					injection = templatedValue
-				}
-				queryStrings[qs][index] = injection
+				expandedInjection := expandTemplatedValues(injection, u)
+				queryStrings[qs][index] = expandedInjection
 
 				// TODO: Find a better solution to turn the qs map into a decoded string
 				decodedQs, err := url.QueryUnescape(queryStrings.Encode())
@@ -163,9 +160,9 @@ func getInjectedUrls(fullUrl string, ruleInjections []string) ([]string, error) 
 }
 
 // Makeshift templating check within the YAML files to allow for more dynamic config files
-func checkTemplate(ruleInjection string, u *url.URL) string {
+func expandTemplatedValues(ruleInjection string, u *url.URL) string {
 	if !strings.Contains(ruleInjection, "[[") || !strings.Contains(ruleInjection, "]]") {
-		return ""
+		return ruleInjection
 	}
 
 	re := regexp.MustCompile(`\[\[([^\[\]]*)\]\]`)
