@@ -2,13 +2,14 @@ rules:
   CallbackFuzz:
     description: Test for open redirects and potential SSRFs by checking for certain responses or callbacks to your server
     injections:
-      - http://example.net
-      - //example.net
-      - https://company.com.example.net
+      - "http://[[domain]].example.net/"
+      - "//example.net?targetUrl=[[fullurl]]"
+      - "https://example.net?target=[[domain]][[path]]"
       - "@example.net"
     expectation:
       responseContents:
         - Example Domain
+        - Neema
   SqlInjectionCheck:
     description: Test for potential SQL injections by injecting characters to break SQL statements
     injections:

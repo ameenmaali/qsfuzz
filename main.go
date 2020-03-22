@@ -64,7 +64,8 @@ type TaskData struct {
 	RuleName    string
 }
 
-var requestsSent int
+var failedRequestsSent int
+var successfulRequestsSent int
 var config Config
 var opts CliOptions
 var evaluationResults []EvaluationResult
@@ -123,7 +124,17 @@ func runEvaluation(resp Response, ruleData Rule, injectedUrl string, ruleName st
 		if err != nil {
 			u = injectedUrl
 		}
-		ruleEvaluation.SuccessMessage = fmt.Sprintf("[%v] successful match for %v\n", ruleName, u)
+		// Sprintf expects format string and arguments so URL encoded values will show up as (MISSING)
+		// when printed. This will URL decode until fully decoded when printing for readability
+		for strings.Contains(u, "%") {
+			decodedUrl, err := url.QueryUnescape(u)
+			if err != nil {
+				break
+			}
+			u = decodedUrl
+		}
+
+		ruleEvaluation.SuccessMessage = fmt.Sprintf("[%s] successful match for %v\n", ruleName, u)
 		evaluationResults = append(evaluationResults, EvaluationResult{RuleName: ruleName, RuleDescription: ruleData.Description, InjectedUrl: injectedUrl})
 	}
 
@@ -177,23 +188,21 @@ func main() {
 
 				resp, err := sendRequest(task.InjectedUrl)
 				if err != nil {
+					failedRequestsSent += 1
+					if opts.Debug {
+						printRed("error sending HTTP request to %v: %v\n", task.InjectedUrl, err)
+					}
 					continue
 				}
 
-				requestsSent += 1
+				successfulRequestsSent += 1
+
 				// Send an update every 1,000 requests
 				if !opts.SilentMode {
-					if requestsSent%1000 == 0 {
+					if successfulRequestsSent%1000 == 0 {
 						secondsElapsed := time.Since(startTime).Seconds()
-						fmt.Fprintf(os.Stderr, "%v requests sent: %v requests per second\n", requestsSent, int(float64(requestsSent)/secondsElapsed))
+						fmt.Fprintf(os.Stderr, "%v requests sent: %v requests per second\n", successfulRequestsSent, int(float64(successfulRequestsSent)/secondsElapsed))
 					}
-				}
-
-				if err != nil {
-					if opts.Debug {
-						printRed("error sending HTTP request (%v)\n", task.InjectedUrl)
-					}
-					continue
 				}
 
 				ruleEvaluation := runEvaluation(resp, task.RuleData, task.InjectedUrl, task.RuleName)
@@ -226,5 +235,5 @@ func main() {
 	wg.Wait()
 
 	secondsElapsed := time.Since(startTime).Seconds()
-	printCyan(os.Stderr, "Evaluations complete! %v requests sent: %v requests per second\n", requestsSent, int(float64(requestsSent)/secondsElapsed))
+	printCyan(os.Stderr, "Evaluations complete! %v successful requests sent (%v failed): %v requests per second\n", successfulRequestsSent, failedRequestsSent, int(float64(successfulRequestsSent)/secondsElapsed))
 }

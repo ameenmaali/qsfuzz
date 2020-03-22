@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/viper"
 	"net/url"
 	"os"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -131,6 +132,11 @@ func getInjectedUrls(fullUrl string, ruleInjections []string) ([]string, error) 
 	for _, injection := range ruleInjections {
 		for qs, values := range queryStrings {
 			for index, val := range values {
+				// Check if templating is used in the injection, if so substitute it
+				templatedValue := checkTemplate(injection, u)
+				if templatedValue != "" {
+					injection = templatedValue
+				}
 				queryStrings[qs][index] = injection
 
 				// TODO: Find a better solution to turn the qs map into a decoded string
@@ -156,6 +162,28 @@ func getInjectedUrls(fullUrl string, ruleInjections []string) ([]string, error) 
 	return replacedUrls, nil
 }
 
-func toHtml() {
+// Makeshift templating check within the YAML files to allow for more dynamic config files
+func checkTemplate(ruleInjection string, u *url.URL) string {
+	if !strings.Contains(ruleInjection, "[[") || !strings.Contains(ruleInjection, "]]") {
+		return ""
+	}
 
+	re := regexp.MustCompile(`\[\[([^\[\]]*)\]\]`)
+
+	templateMatches := re.FindAllString(ruleInjection, -1)
+	for _, match := range templateMatches {
+		if strings.ToLower(match) == "[[fullurl]]" {
+			ruleInjection = strings.ReplaceAll(ruleInjection, match, url.QueryEscape(u.String()))
+		}
+
+		if strings.ToLower(match) == "[[domain]]" {
+			ruleInjection = strings.ReplaceAll(ruleInjection, match, u.Host)
+		}
+
+		if strings.ToLower(match) == "[[path]]" {
+			ruleInjection = strings.ReplaceAll(ruleInjection, match, u.Path)
+		}
+
+	}
+	return ruleInjection
 }
