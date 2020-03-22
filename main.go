@@ -199,9 +199,10 @@ func main() {
 
 				// Send an update every 1,000 requests
 				if !opts.SilentMode {
-					if successfulRequestsSent%1000 == 0 {
+					totalRequestsSent := successfulRequestsSent + failedRequestsSent
+					if totalRequestsSent%1000 == 0 {
 						secondsElapsed := time.Since(startTime).Seconds()
-						fmt.Fprintf(os.Stderr, "%v requests sent: %v requests per second\n", successfulRequestsSent, int(float64(successfulRequestsSent)/secondsElapsed))
+						fmt.Fprintf(os.Stderr, "%v requests sent (%v failed): %v requests per second\n", totalRequestsSent, failedRequestsSent, int(float64(successfulRequestsSent)/secondsElapsed))
 					}
 				}
 
