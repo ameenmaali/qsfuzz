@@ -93,9 +93,16 @@ func GetUrlsFromFile() ([]string, error) {
 			continue
 		}
 
+		queryStrings := u.Query()
+
+		// Only include URLs that have query strings
+		if len(queryStrings) == 0 {
+			continue
+		}
+
 		// Use query string keys when sorting in order to get unique URL & Query String combinations
 		params := make([]string, 0)
-		for param, _ := range u.Query() {
+		for param, _ := range queryStrings {
 			params = append(params, param)
 		}
 		sort.Strings(params)
