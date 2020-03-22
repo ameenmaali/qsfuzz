@@ -218,6 +218,9 @@ func main() {
 			fullUrl, err := url.Parse(u)
 			// If URL can't be parsed, ignore and move on
 			if err != nil {
+				if opts.Debug {
+					printRed("[%v] error parsing URL or query parameters for\n", rule)
+				}
 				continue
 			}
 
