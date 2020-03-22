@@ -215,7 +215,13 @@ func main() {
 
 	for _, u := range urls {
 		for rule, ruleData := range config.Rules {
-			injectedUrls, err := getInjectedUrls(u, ruleData.Injections)
+			fullUrl, err := url.Parse(u)
+			// If URL can't be parsed, ignore and move on
+			if err != nil {
+				continue
+			}
+
+			injectedUrls, err := getInjectedUrls(fullUrl, ruleData.Injections)
 			if err != nil {
 				if opts.Debug {
 					printRed("[%v] error parsing URL or query parameters for\n", rule)
@@ -225,6 +231,7 @@ func main() {
 			if injectedUrls == nil {
 				continue
 			}
+
 			for _, injectedUrl := range injectedUrls {
 				tasks <- TaskData{RuleName: rule, RuleData: ruleData, InjectedUrl: injectedUrl}
 			}

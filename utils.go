@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/viper"
 	"net/url"
 	"os"
-	"regexp"
 	"sort"
 	"strings"
 )
@@ -114,27 +113,24 @@ func GetUrlsFromFile() ([]string, error) {
 	return urls, scanner.Err()
 }
 
-func getInjectedUrls(fullUrl string, ruleInjections []string) ([]string, error) {
-	u, err := url.Parse(fullUrl)
-
-	// If URL can't be parsed, ignore and move on
-	if err != nil {
-		return nil, err
-	}
-
+func getInjectedUrls(u *url.URL, ruleInjections []string) ([]string, error) {
 	// If query strings can't be parsed, set query strings as empty
 	queryStrings, err := url.ParseQuery(u.RawQuery)
 	if err != nil {
 		return nil, err
 	}
 
+	var expandedRuleInjections []string
+	for _, ruleInjection := range ruleInjections {
+		expandedRuleInjection := expandTemplatedValues(ruleInjection, u)
+		expandedRuleInjections = append(expandedRuleInjections, expandedRuleInjection)
+	}
+
 	var replacedUrls []string
-	for _, injection := range ruleInjections {
+	for _, injection := range expandedRuleInjections {
 		for qs, values := range queryStrings {
 			for index, val := range values {
-				// Check if templating is used in the injection, if so substitute it
-				expandedInjection := expandTemplatedValues(injection, u)
-				queryStrings[qs][index] = expandedInjection
+				queryStrings[qs][index] = injection
 
 				// TODO: Find a better solution to turn the qs map into a decoded string
 				decodedQs, err := url.QueryUnescape(queryStrings.Encode())
@@ -165,24 +161,8 @@ func expandTemplatedValues(ruleInjection string, u *url.URL) string {
 		return ruleInjection
 	}
 
-	re := regexp.MustCompile(`\[\[([^\[\]]*)\]\]`)
-
-	templateMatches := re.FindAllString(ruleInjection, -1)
-	// Although this loop isn't necessary, keeping it here to remove "nexted" templates in certain scenarios
-	// and for future refactoring to a better system
-	for _, match := range templateMatches {
-		if strings.ToLower(match) == "[[fullurl]]" {
-			ruleInjection = strings.ReplaceAll(ruleInjection, match, url.QueryEscape(u.String()))
-		}
-
-		if strings.ToLower(match) == "[[domain]]" {
-			ruleInjection = strings.ReplaceAll(ruleInjection, match, u.Host)
-		}
-
-		if strings.ToLower(match) == "[[path]]" {
-			ruleInjection = strings.ReplaceAll(ruleInjection, match, url.QueryEscape(u.Path))
-		}
-
-	}
+	ruleInjection = strings.ReplaceAll(ruleInjection, "[[fullurl]]", url.QueryEscape(u.String()))
+	ruleInjection = strings.ReplaceAll(ruleInjection, "[[domain]]", u.Host)
+	ruleInjection = strings.ReplaceAll(ruleInjection, "[[path]]", url.QueryEscape(u.Path))
 	return ruleInjection
 }
