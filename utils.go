@@ -168,6 +168,8 @@ func expandTemplatedValues(ruleInjection string, u *url.URL) string {
 	re := regexp.MustCompile(`\[\[([^\[\]]*)\]\]`)
 
 	templateMatches := re.FindAllString(ruleInjection, -1)
+	// Although this loop isn't necessary, keeping it here to remove "nexted" templates in certain scenarios
+	// and for future refactoring to a better system
 	for _, match := range templateMatches {
 		if strings.ToLower(match) == "[[fullurl]]" {
 			ruleInjection = strings.ReplaceAll(ruleInjection, match, url.QueryEscape(u.String()))
@@ -178,7 +180,7 @@ func expandTemplatedValues(ruleInjection string, u *url.URL) string {
 		}
 
 		if strings.ToLower(match) == "[[path]]" {
-			ruleInjection = strings.ReplaceAll(ruleInjection, match, u.Path)
+			ruleInjection = strings.ReplaceAll(ruleInjection, match, url.QueryEscape(u.Path))
 		}
 
 	}
