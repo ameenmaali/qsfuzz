@@ -43,18 +43,24 @@ func VerifyFlags(options *CliOptions) error {
 	}
 
 	if options.Headers != "" {
+		if !strings.Contains(options.Headers, ":") {
+			return errors.New("headers flag not formatted properly (no colon to separate header and value)")
+		}
 		headers := make(map[string]string)
 		rawHeaders := strings.Split(options.Headers, ";")
 		for _, header := range rawHeaders {
 			var parts []string
 			if strings.Contains(header, ": ") {
 				parts = strings.Split(header, ": ")
-			} else {
+			} else if strings.Contains(header, ":") {
 				parts = strings.Split(header, ":")
+			} else {
+				continue
 			}
 			headers[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 		}
 		config.Headers = headers
+
 	}
 
 	return nil
