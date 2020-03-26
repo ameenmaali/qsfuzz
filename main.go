@@ -20,6 +20,7 @@ type CliOptions struct {
 	Concurrency   int
 	DecodedParams bool
 	SilentMode    bool
+	Timeout       int
 }
 
 type Config struct {

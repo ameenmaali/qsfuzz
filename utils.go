@@ -32,6 +32,9 @@ func VerifyFlags(options *CliOptions) error {
 	flag.IntVar(&options.Concurrency, "w", 25, "Set the concurrency/worker count")
 	flag.IntVar(&options.Concurrency, "workers", 25, "Set the concurrency/worker count")
 
+	flag.IntVar(&options.Timeout, "t", 15, "Set the timeout length (in seconds) for each HTTP request")
+	flag.IntVar(&options.Timeout, "timeout", 15, "Set the timeout length (in seconds) for each HTTP request")
+
 	flag.Parse()
 
 	if options.ConfigFile == "" {

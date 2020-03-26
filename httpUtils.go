@@ -12,7 +12,7 @@ var transport = &http.Transport{
 	TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
 	DisableKeepAlives: true,
 	DialContext: (&net.Dialer{
-		Timeout:   30 * time.Second,
+		Timeout:   time.Duration(opts.Timeout) * time.Second,
 		KeepAlive: time.Second,
 	}).DialContext,
 }
