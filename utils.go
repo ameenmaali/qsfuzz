@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-func VerifyFlags(options *CliOptions) error {
+func verifyFlags(options *CliOptions) error {
 	flag.StringVar(&options.ConfigFile, "c", "", "File path to config file, which contains fuzz rules")
 	flag.StringVar(&options.ConfigFile, "config", "", "File path to config file, which contains fuzz rules")
 
@@ -89,7 +89,7 @@ func loadConfig(configFile string) error {
 	return nil
 }
 
-func GetUrlsFromFile() ([]string, error) {
+func getUrlsFromFile() ([]string, error) {
 	deduplicatedUrls := make(map[string]bool)
 	var urls []string
 

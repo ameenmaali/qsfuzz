@@ -24,9 +24,10 @@ type CliOptions struct {
 }
 
 type Config struct {
-	Rules   map[string]Rule `mapstructure:"rules"`
-	Cookies string
-	Headers map[string]string
+	Rules      map[string]Rule `mapstructure:"rules"`
+	Cookies    string
+	Headers    map[string]string
+	httpClient *http.Client
 }
 
 type Rule struct {
@@ -70,6 +71,11 @@ var successfulRequestsSent int
 var config Config
 var opts CliOptions
 var evaluationResults []EvaluationResult
+
+var printGreen = color.New(color.FgGreen).PrintfFunc()
+var printRed = color.New(color.FgRed).PrintfFunc()
+var printCyan = color.New(color.FgCyan).FprintfFunc()
+var startTime = time.Now()
 
 func runEvaluation(resp Response, ruleData Rule, injectedUrl string, ruleName string) RuleEvaluation {
 	headersExpected := false
@@ -143,11 +149,7 @@ func runEvaluation(resp Response, ruleData Rule, injectedUrl string, ruleName st
 }
 
 func main() {
-	printGreen := color.New(color.FgGreen).PrintfFunc()
-	printRed := color.New(color.FgRed).PrintfFunc()
-	printCyan := color.New(color.FgCyan).FprintfFunc()
-
-	err := VerifyFlags(&opts)
+	err := verifyFlags(&opts)
 	if err != nil {
 		fmt.Println(err)
 		flag.Usage()
@@ -159,11 +161,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	urls, err := GetUrlsFromFile()
+	urls, err := getUrlsFromFile()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	// Create HTTP Transport and Client after parsing flags
+	createClient()
 
 	if !opts.SilentMode {
 		printCyan(os.Stderr, "There are %v unique URL/Query String combinations. Time to inject each query string, 1 at a time!\n", len(urls))
@@ -178,40 +183,10 @@ func main() {
 	for i := 0; i < opts.Concurrency; i++ {
 		wg.Add(1)
 		go func() {
-			defer wg.Done()
-
-			for {
-				task, ok := <-tasks
-				// Return if tasks are complete
-				if !ok {
-					return
-				}
-
-				resp, err := sendRequest(task.InjectedUrl)
-				if err != nil {
-					failedRequestsSent += 1
-					if opts.Debug {
-						printRed("error sending HTTP request to %v: %v\n", task.InjectedUrl, err)
-					}
-					continue
-				}
-
-				successfulRequestsSent += 1
-
-				// Send an update every 1,000 requests
-				if !opts.SilentMode {
-					totalRequestsSent := successfulRequestsSent + failedRequestsSent
-					if totalRequestsSent%1000 == 0 {
-						secondsElapsed := time.Since(startTime).Seconds()
-						fmt.Fprintf(os.Stderr, "%v requests sent (%v failed): %v requests per second\n", totalRequestsSent, failedRequestsSent, int(float64(successfulRequestsSent)/secondsElapsed))
-					}
-				}
-
-				ruleEvaluation := runEvaluation(resp, task.RuleData, task.InjectedUrl, task.RuleName)
-				if ruleEvaluation.Successful {
-					printGreen(ruleEvaluation.SuccessMessage)
-				}
+			for task := range tasks {
+				task.execute()
 			}
+			wg.Done()
 		}()
 	}
 
@@ -248,4 +223,31 @@ func main() {
 
 	secondsElapsed := time.Since(startTime).Seconds()
 	printCyan(os.Stderr, "Evaluations complete! %v successful requests sent (%v failed): %v requests per second\n", successfulRequestsSent, failedRequestsSent, int(float64(successfulRequestsSent)/secondsElapsed))
+}
+
+func (t TaskData) execute() {
+	resp, err := sendRequest(t.InjectedUrl)
+	if err != nil {
+		failedRequestsSent += 1
+		if opts.Debug {
+			printRed("error sending HTTP request to %v: %v\n", t.InjectedUrl, err)
+		}
+		return
+	}
+
+	successfulRequestsSent += 1
+
+	// Send an update every 1,000 requests
+	if !opts.SilentMode {
+		totalRequestsSent := successfulRequestsSent + failedRequestsSent
+		if totalRequestsSent%1000 == 0 {
+			secondsElapsed := time.Since(startTime).Seconds()
+			fmt.Fprintf(os.Stderr, "%v requests sent (%v failed): %v requests per second\n", totalRequestsSent, failedRequestsSent, int(float64(successfulRequestsSent)/secondsElapsed))
+		}
+	}
+
+	ruleEvaluation := runEvaluation(resp, t.RuleData, t.InjectedUrl, t.RuleName)
+	if ruleEvaluation.Successful {
+		printGreen(ruleEvaluation.SuccessMessage)
+	}
 }

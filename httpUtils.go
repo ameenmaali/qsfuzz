@@ -8,17 +8,21 @@ import (
 	"time"
 )
 
-var transport = &http.Transport{
-	TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
-	DisableKeepAlives: true,
-	DialContext: (&net.Dialer{
-		Timeout:   time.Duration(opts.Timeout) * time.Second,
-		KeepAlive: time.Second,
-	}).DialContext,
-}
+func createClient() {
+	transport := &http.Transport{
+		TLSClientConfig:   &tls.Config{InsecureSkipVerify: true},
+		DisableKeepAlives: true,
+		DialContext: (&net.Dialer{
+			Timeout:   time.Duration(opts.Timeout) * time.Second,
+			KeepAlive: time.Second,
+		}).DialContext,
+	}
 
-var httpClient = &http.Client{
-	Transport: transport,
+	httpClient := &http.Client{
+		Transport: transport,
+		Timeout:   time.Duration(opts.Timeout + 3) * time.Second,
+	}
+	config.httpClient = httpClient
 }
 
 func sendRequest(u string) (Response, error) {
@@ -39,7 +43,8 @@ func sendRequest(u string) (Response, error) {
 	// Add cookies passed in as arguments
 	request.Header.Add("Cookie", config.Cookies)
 
-	resp, err := httpClient.Do(request)
+	resp, err := config.httpClient.Do(request)
+
 	if err != nil {
 		return response, err
 	}
