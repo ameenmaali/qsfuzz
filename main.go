@@ -60,7 +60,7 @@ type EvaluationResult struct {
 	InjectedUrl     string
 }
 
-type TaskData struct {
+type Task struct {
 	InjectedUrl string
 	RuleData    Rule
 	RuleName    string
@@ -174,7 +174,7 @@ func main() {
 		printCyan(os.Stderr, "There are %v unique URL/Query String combinations. Time to inject each query string, 1 at a time!\n", len(urls))
 	}
 
-	tasks := make(chan TaskData)
+	tasks := make(chan Task)
 
 	var wg sync.WaitGroup
 
@@ -213,7 +213,7 @@ func main() {
 			}
 
 			for _, injectedUrl := range injectedUrls {
-				tasks <- TaskData{RuleName: rule, RuleData: ruleData, InjectedUrl: injectedUrl}
+				tasks <- Task{RuleName: rule, RuleData: ruleData, InjectedUrl: injectedUrl}
 			}
 		}
 	}
@@ -225,7 +225,7 @@ func main() {
 	printCyan(os.Stderr, "Evaluations complete! %v successful requests sent (%v failed): %v requests per second\n", successfulRequestsSent, failedRequestsSent, int(float64(successfulRequestsSent)/secondsElapsed))
 }
 
-func (t TaskData) execute() {
+func (t Task) execute() {
 	resp, err := sendRequest(t.InjectedUrl)
 	if err != nil {
 		failedRequestsSent += 1
