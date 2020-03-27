@@ -178,7 +178,7 @@ func expandTemplatedValues(ruleInjection string, u *url.URL) string {
 	}
 
 	ruleInjection = strings.ReplaceAll(ruleInjection, "[[fullurl]]", url.QueryEscape(u.String()))
-	ruleInjection = strings.ReplaceAll(ruleInjection, "[[domain]]", u.Host)
+	ruleInjection = strings.ReplaceAll(ruleInjection, "[[domain]]", u.Hostname())
 	ruleInjection = strings.ReplaceAll(ruleInjection, "[[path]]", url.QueryEscape(u.Path))
 	return ruleInjection
 }
