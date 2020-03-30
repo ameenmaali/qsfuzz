@@ -46,6 +46,9 @@ rules:
         - <h2>asd</h2>
       responseHeaders:
         Content-Type: html
+slack:
+  channel: "#channel-name"
+  botToken: "MY-BOT-TOKEN"
 ```
 
 #### Important Notes for Config files
@@ -75,6 +78,12 @@ rules:
     # This is a list (1 or more) of which include a response header that should be present to indicate it is vulnerable.
     responseHeaders:
       -
+# Optional key, to be used if -to-slack command line flag is enabled. Sends positive results to Slack
+slack:
+  # The Slack channel you wish to send results to
+  channel: "#channel-name"
+  # The bot token for your Slack app to use for authentication
+  botToken: "MY-BOT-TOKEN"
 ```
 
 For the `expectation` section, 3 types of matching are supported: `responseContents`, `responseCodes`, and `responseHeaders`
@@ -127,6 +136,16 @@ rules:
         - Example Domain
 ```
 
+### Slack Integration
+qsfuzz also supports sending positive matches to Slack. This can be done by adding in the following Slack Config in your config.yaml file.
+This should be done as a separate key from `rules` (see above example), which is the `slack` key:
+
+```
+slack:
+  channel: "#channel-name"
+  botToken: "MY-BOT-TOKEN"
+```
+
 This is particularly valuable in blind attacks, such as blind SSRF, where `qsfuzz` won't necessarily know whether it's successful, but your callback server receives a hit. 
 You can add some data, such as the above supported parameters, within the injection to also send the vulnerable, injected URL within the request.
 
@@ -154,6 +173,14 @@ Usage of qsfuzz:
         Only print successful evaluations (i.e. mute status updates). Note these updates print to stderr, and won't be saved if saving stdout to files
   -silent
     	Only print successful evaluations (i.e. mute status updates). Note these updates print to stderr, and won't be saved if saving stdout to files
+  -t int
+    	Set the timeout length (in seconds) for each HTTP request (default 15)
+  -timeout int
+    	Set the timeout length (in seconds) for each HTTP request (default 15)
+  -to-slack
+    	Send positive matches to Slack (must have Slack key properly setup in config file)
+  -ts
+    	Send positive matches to Slack (must have Slack key properly setup in config file)
   -w int
     	Set the concurrency/worker count (default 25)
   -workers int
@@ -171,3 +198,7 @@ Get URLs from Wayback Machine with `waybackurls` and fuzz the parameters with `q
 Use cookies and headers for fuzzing:
 
 `cat urls.txt | qsfuzz -c config.yaml -cookies "cookie1=value; cookie2=value2" -H "Authorization: Basic qosakdq==`
+
+Crawl with hakrawler, assess with qsfuzz, and send results to Slack:
+
+`cat hosts.txt | hakrawler | qsfuzz -c config.yaml -to-slack`

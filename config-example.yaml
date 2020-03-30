@@ -27,3 +27,6 @@ rules:
         - '<h2>asd</h2>'
       responseHeaders:
         Content-Type: html
+slack:
+  channel: "#channel-name"
+  botToken: "MY-BOT-TOKEN"

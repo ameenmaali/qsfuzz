@@ -35,6 +35,9 @@ func verifyFlags(options *CliOptions) error {
 	flag.IntVar(&options.Timeout, "t", 15, "Set the timeout length (in seconds) for each HTTP request")
 	flag.IntVar(&options.Timeout, "timeout", 15, "Set the timeout length (in seconds) for each HTTP request")
 
+	flag.BoolVar(&options.ToSlack, "ts", false, "Send positive matches to Slack (must have Slack key properly setup in config file)")
+	flag.BoolVar(&options.ToSlack, "to-slack", false, "Send positive matches to Slack (must have Slack key properly setup in config file)")
+
 	flag.Parse()
 
 	if options.ConfigFile == "" {
@@ -84,6 +87,20 @@ func loadConfig(configFile string) error {
 
 	if err := v.UnmarshalKey("rules", &config); err != nil {
 		return err
+	}
+
+	if err := v.UnmarshalKey("slack", &config); err != nil {
+		return err
+	}
+
+	// Ensure the Slack config in the config file has at least 2 keys (bot token and channel)
+	if len(config.Slack) < 2 && opts.ToSlack {
+		return errors.New(fmt.Sprintf("Slack flag enabled, but Slack config not adequately provided in %v\n", configFile))
+	}
+
+	// Add hashtag if the channel name is missing it
+	if !strings.HasPrefix(config.Slack["channel"], "#") {
+		config.Slack["channel"] = "#" + config.Slack["channel"]
 	}
 
 	return nil
@@ -151,7 +168,9 @@ func getInjectedUrls(u *url.URL, ruleInjections []string) ([]string, error) {
 				// TODO: Find a better solution to turn the qs map into a decoded string
 				decodedQs, err := url.QueryUnescape(queryStrings.Encode())
 				if err != nil {
-					fmt.Println("Error decoding parameters: ", err)
+					if opts.Debug {
+						printRed(os.Stderr, "Error decoding parameters: ", err)
+					}
 					continue
 				}
 

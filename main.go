@@ -21,10 +21,12 @@ type CliOptions struct {
 	DecodedParams bool
 	SilentMode    bool
 	Timeout       int
+	ToSlack       bool
 }
 
 type Config struct {
-	Rules      map[string]Rule `mapstructure:"rules"`
+	Rules      map[string]Rule   `mapstructure:"rules"`
+	Slack      map[string]string `mapstructure:"slack"`
 	Cookies    string
 	Headers    map[string]string
 	httpClient *http.Client
@@ -73,7 +75,7 @@ var opts CliOptions
 var evaluationResults []EvaluationResult
 
 var printGreen = color.New(color.FgGreen).PrintfFunc()
-var printRed = color.New(color.FgRed).PrintfFunc()
+var printRed = color.New(color.FgRed).FprintfFunc()
 var printCyan = color.New(color.FgCyan).FprintfFunc()
 var startTime = time.Now()
 
@@ -196,7 +198,7 @@ func main() {
 			// If URL can't be parsed, ignore and move on
 			if err != nil {
 				if opts.Debug {
-					printRed("[%v] error parsing URL or query parameters for\n", rule)
+					printRed(os.Stderr, "[%v] error parsing URL or query parameters for\n", rule)
 				}
 				continue
 			}
@@ -204,7 +206,7 @@ func main() {
 			injectedUrls, err := getInjectedUrls(fullUrl, ruleData.Injections)
 			if err != nil {
 				if opts.Debug {
-					printRed("[%v] error parsing URL or query parameters for\n", rule)
+					printRed(os.Stderr, "[%v] error parsing URL or query parameters for\n", rule)
 				}
 				continue
 			}
@@ -230,7 +232,7 @@ func (t Task) execute() {
 	if err != nil {
 		failedRequestsSent += 1
 		if opts.Debug {
-			printRed("error sending HTTP request to %v: %v\n", t.InjectedUrl, err)
+			printRed(os.Stderr, "error sending HTTP request to %v: %v\n", t.InjectedUrl, err)
 		}
 		return
 	}
@@ -249,5 +251,11 @@ func (t Task) execute() {
 	ruleEvaluation := runEvaluation(resp, t.RuleData, t.InjectedUrl, t.RuleName)
 	if ruleEvaluation.Successful {
 		printGreen(ruleEvaluation.SuccessMessage)
+		if opts.ToSlack {
+			err = sendSlackMessage(ruleEvaluation.SuccessMessage)
+			if err != nil && opts.Debug {
+				printRed(os.Stderr, "error sending Slack message: %v\n", err)
+			}
+		}
 	}
 }

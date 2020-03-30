@@ -20,7 +20,7 @@ func createClient() {
 
 	httpClient := &http.Client{
 		Transport: transport,
-		Timeout:   time.Duration(opts.Timeout + 3) * time.Second,
+		Timeout:   time.Duration(opts.Timeout+3) * time.Second,
 	}
 	config.httpClient = httpClient
 }
