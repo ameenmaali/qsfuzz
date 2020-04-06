@@ -134,10 +134,10 @@ In order to be successful, one of the 2 `responseContents` must be matched, as w
 There is rudimentary templating functionality within the rule's injection points, which can be done by inserting the supported variable in square brackets `[[var]]`. 
 This is to allow for some dynamic payloads where you need them. Here are the following fields supported within the templating (these are all related to the URL that is 
 being assessed at that point in time):
-- fullurl (This is the full URL, including query strings, of the URL being targeted in a given request)
-- domain (This is the domain of the URL being targeted in a given request)
-- path (This is the path, not including query strings, of the URL being targeted in a given request)
-- originalvalue (This is the query strings original value before being altered with the injection. i.e. `qs=asd` where `asd` is the original value)
+- `fullurl` (This is the full URL, including query strings, of the URL being targeted in a given request)
+- `domain` (This is the domain of the URL being targeted in a given request)
+- `path` (This is the path, not including query strings, of the URL being targeted in a given request)
+- `originalvalue` (This is the query strings original value before being altered with the injection. i.e. `qs=asd` where `asd` is the original value)
 
 An example on using these are:
 
