@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/spf13/viper"
+	"math"
 	"net/url"
 	"os"
 	"sort"
@@ -99,8 +100,19 @@ func loadConfig(configFile string) error {
 	}
 
 	// Add hashtag if the channel name is missing it
-	if !strings.HasPrefix(config.Slack["channel"], "#") {
-		config.Slack["channel"] = "#" + config.Slack["channel"]
+	if len(config.Slack) != 0 {
+		if !strings.HasPrefix(config.Slack["channel"], "#") {
+			config.Slack["channel"] = "#" + config.Slack["channel"]
+		}
+	}
+
+	config.HasExtraParams = false
+	// If any rules have extra params to be injected, set the config object to true to ensure URLs
+	// with no query strings are also included
+	for _, ruleValue := range config.Rules {
+		if len(ruleValue.ExtraParams) != 0 {
+			config.HasExtraParams = true
+		}
 	}
 
 	return nil
@@ -122,7 +134,7 @@ func getUrlsFromFile() ([]string, error) {
 		queryStrings := u.Query()
 
 		// Only include URLs that have query strings
-		if len(queryStrings) == 0 {
+		if len(queryStrings) == 0 && !config.HasExtraParams {
 			continue
 		}
 
@@ -146,48 +158,67 @@ func getUrlsFromFile() ([]string, error) {
 	return urls, scanner.Err()
 }
 
-func getInjectedUrls(u *url.URL, ruleInjections []string) ([]string, error) {
+func getInjectedUrls(u *url.URL, rule Rule) ([]UrlInjection, error) {
 	// If query strings can't be parsed, set query strings as empty
 	queryStrings, err := url.ParseQuery(u.RawQuery)
 	if err != nil {
 		return nil, err
 	}
 
+	var urlInjections []UrlInjection
+
+	// Get extra rule injections if exists
+	if len(rule.ExtraParams) != 0 && len(queryStrings) == 0 {
+		for _, param := range rule.ExtraParams {
+			if len(queryStrings[param]) != 0 {
+				queryStrings.Add(param, "")
+			}
+		}
+	}
+
 	var expandedRuleInjections []string
-	for _, ruleInjection := range ruleInjections {
+	for _, ruleInjection := range rule.Injections {
 		expandedRuleInjection := expandTemplatedValues(ruleInjection, u)
 		expandedRuleInjections = append(expandedRuleInjections, expandedRuleInjection)
 	}
 
-	var replacedUrls []string
 	for _, injection := range expandedRuleInjections {
 		for qs, values := range queryStrings {
 			for index, val := range values {
+				urlInjection := UrlInjection{BaselineUrl: u.String()}
+
 				queryStrings[qs][index] = injection
 
-				// TODO: Find a better solution to turn the qs map into a decoded string
-				decodedQs, err := url.QueryUnescape(queryStrings.Encode())
+				query, err := getInjectedQueryString(queryStrings)
 				if err != nil {
 					if opts.Debug {
 						printRed(os.Stderr, "Error decoding parameters: ", err)
 					}
-					continue
 				}
 
-				if opts.DecodedParams {
-					u.RawQuery = decodedQs
-				} else {
-					u.RawQuery = queryStrings.Encode()
+				u.RawQuery = query
+				urlInjection.InjectedUrl = u.String()
+
+				if rule.Heuristics.Injection != "" {
+					queryStrings[qs][index] = rule.Heuristics.Injection
+					query, err := getInjectedQueryString(queryStrings)
+					if err != nil {
+						if opts.Debug {
+							printRed(os.Stderr, "Error decoding parameters: ", err)
+						}
+					}
+					u.RawQuery = query
+					urlInjection.HeuristicsUrl = u.String()
 				}
 
-				replacedUrls = append(replacedUrls, u.String())
+				urlInjections = append(urlInjections, urlInjection)
 
 				// Set back to original qs val to ensure we only update one parameter at a time
 				queryStrings[qs][index] = val
 			}
 		}
 	}
-	return replacedUrls, nil
+	return urlInjections, nil
 }
 
 // Makeshift templating check within the YAML files to allow for more dynamic config files
@@ -196,8 +227,37 @@ func expandTemplatedValues(ruleInjection string, u *url.URL) string {
 		return ruleInjection
 	}
 
-	ruleInjection = strings.ReplaceAll(ruleInjection, "[[fullurl]]", url.QueryEscape(u.String()))
-	ruleInjection = strings.ReplaceAll(ruleInjection, "[[domain]]", u.Hostname())
-	ruleInjection = strings.ReplaceAll(ruleInjection, "[[path]]", url.QueryEscape(u.Path))
-	return ruleInjection
+	replacer := strings.NewReplacer(
+		"[[fullurl]]", url.QueryEscape(u.String()),
+		"[[domain]]", u.Hostname(),
+		"[[path]]", url.QueryEscape(u.Path),
+	)
+
+	return replacer.Replace(ruleInjection)
+}
+
+func getInjectedQueryString(injectedQs url.Values) (string, error) {
+	var qs string
+	// TODO: Find a better solution to turn the qs map into a decoded string
+	decodedQs, err := url.QueryUnescape(injectedQs.Encode())
+	if err != nil {
+		return "", err
+	}
+
+	if opts.DecodedParams {
+		qs = decodedQs
+	} else {
+		qs = injectedQs.Encode()
+	}
+
+	return qs, nil
+}
+
+func isLengthWithinTenPercent(expectedLength int, responseLength int) bool {
+	diff := int(math.Abs(float64(expectedLength) - float64(responseLength)))
+	// Check if the diff is less than 10%, if so, consider a positive match
+	if (diff/responseLength)*100 <= 10 {
+		return true
+	}
+	return false
 }

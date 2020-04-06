@@ -63,6 +63,7 @@ func sendRequest(u string) (Response, error) {
 	response.Body = string(body)
 	response.Headers = resp.Header
 	response.StatusCode = resp.StatusCode
+	response.ContentLength = int(resp.ContentLength)
 
 	return response, err
 }

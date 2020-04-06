@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"sync"
 	"time"
 )
@@ -25,29 +24,45 @@ type CliOptions struct {
 }
 
 type Config struct {
-	Rules      map[string]Rule   `mapstructure:"rules"`
-	Slack      map[string]string `mapstructure:"slack"`
-	Cookies    string
-	Headers    map[string]string
-	httpClient *http.Client
+	Rules          map[string]Rule   `mapstructure:"rules"`
+	Slack          map[string]string `mapstructure:"slack"`
+	Cookies        string
+	Headers        map[string]string
+	httpClient     *http.Client
+	HasExtraParams bool
 }
 
 type Rule struct {
 	Description string           `mapstructure:"description"`
 	Injections  []string         `mapstructure:"injections"`
+	ExtraParams []string         `mapstructure:"extraParams"`
 	Expectation ExpectedResponse `mapstructure:"expectation"`
+	Heuristics  HeuristicsRule   `mapstructure:"heuristics"`
+}
+
+type HeuristicsRule struct {
+	Injection       string   `mapstructure:"injection"`
+	BaselineMatches []string `mapstructure:"baselineMatches"`
 }
 
 type ExpectedResponse struct {
 	Contents []string          `mapstructure:"responseContents"`
-	Codes    []int             `mapstructure:"responseCodes"`
+	Codes    []string          `mapstructure:"responseCodes"`
 	Headers  map[string]string `mapstructure:"responseHeaders"`
+	Lengths  []string          `mapstructure:"responseLength"`
+}
+
+type UrlInjection struct {
+	BaselineUrl   string
+	InjectedUrl   string
+	HeuristicsUrl string
 }
 
 type Response struct {
-	StatusCode int
-	Body       string
-	Headers    http.Header
+	StatusCode    int
+	Body          string
+	Headers       http.Header
+	ContentLength int
 }
 
 type RuleEvaluation struct {
@@ -63,9 +78,9 @@ type EvaluationResult struct {
 }
 
 type Task struct {
-	InjectedUrl string
-	RuleData    Rule
-	RuleName    string
+	UrlInjection UrlInjection
+	RuleData     Rule
+	RuleName     string
 }
 
 var failedRequestsSent int
@@ -73,82 +88,12 @@ var successfulRequestsSent int
 var config Config
 var opts CliOptions
 var evaluationResults []EvaluationResult
+var responseCache map[string]Response
 
 var printGreen = color.New(color.FgGreen).PrintfFunc()
 var printRed = color.New(color.FgRed).FprintfFunc()
 var printCyan = color.New(color.FgCyan).FprintfFunc()
 var startTime = time.Now()
-
-func runEvaluation(resp Response, ruleData Rule, injectedUrl string, ruleName string) RuleEvaluation {
-	headersExpected := false
-	bodyExpected := false
-	codeExpected := false
-
-	numOfChecks := 0
-
-	var ruleEvaluation RuleEvaluation
-
-	if ruleData.Expectation.Headers != nil {
-		headersExpected = true
-		numOfChecks += 1
-	}
-
-	if ruleData.Expectation.Contents != nil {
-		bodyExpected = true
-		numOfChecks += 1
-	}
-
-	if ruleData.Expectation.Codes != nil {
-		codeExpected = true
-		numOfChecks += 1
-	}
-
-	if bodyExpected {
-		for _, content := range ruleData.Expectation.Contents {
-			if strings.Contains(strings.ToLower(resp.Body), strings.ToLower(content)) {
-				ruleEvaluation.ChecksMatched += 1
-			}
-		}
-	}
-
-	if codeExpected {
-		for _, code := range ruleData.Expectation.Codes {
-			if code == resp.StatusCode {
-				ruleEvaluation.ChecksMatched += 1
-			}
-		}
-	}
-
-	if headersExpected {
-		for header, value := range ruleData.Expectation.Headers {
-			if strings.Contains(strings.ToLower(resp.Headers.Get(header)), strings.ToLower(value)) {
-				ruleEvaluation.ChecksMatched += 1
-			}
-		}
-	}
-
-	if ruleEvaluation.ChecksMatched > 0 && ruleEvaluation.ChecksMatched >= numOfChecks {
-		ruleEvaluation.Successful = true
-		u, err := url.QueryUnescape(injectedUrl)
-		if err != nil {
-			u = injectedUrl
-		}
-		// Sprintf expects format string and arguments so URL encoded values will show up as (MISSING)
-		// when printed. This will URL decode until fully decoded when printing for readability
-		for strings.Contains(u, "%") {
-			decodedUrl, err := url.QueryUnescape(u)
-			if err != nil {
-				break
-			}
-			u = decodedUrl
-		}
-
-		ruleEvaluation.SuccessMessage = fmt.Sprintf("[%s] successful match for %v\n", ruleName, u)
-		evaluationResults = append(evaluationResults, EvaluationResult{RuleName: ruleName, RuleDescription: ruleData.Description, InjectedUrl: injectedUrl})
-	}
-
-	return ruleEvaluation
-}
 
 func main() {
 	err := verifyFlags(&opts)
@@ -203,7 +148,7 @@ func main() {
 				continue
 			}
 
-			injectedUrls, err := getInjectedUrls(fullUrl, ruleData.Injections)
+			injectedUrls, err := getInjectedUrls(fullUrl, ruleData)
 			if err != nil {
 				if opts.Debug {
 					printRed(os.Stderr, "[%v] error parsing URL or query parameters for\n", rule)
@@ -215,7 +160,7 @@ func main() {
 			}
 
 			for _, injectedUrl := range injectedUrls {
-				tasks <- Task{RuleName: rule, RuleData: ruleData, InjectedUrl: injectedUrl}
+				tasks <- Task{RuleName: rule, RuleData: ruleData, UrlInjection: injectedUrl}
 			}
 		}
 	}
@@ -228,16 +173,42 @@ func main() {
 }
 
 func (t Task) execute() {
-	resp, err := sendRequest(t.InjectedUrl)
+	resp, err := sendRequest(t.UrlInjection.InjectedUrl)
 	if err != nil {
 		failedRequestsSent += 1
 		if opts.Debug {
-			printRed(os.Stderr, "error sending HTTP request to %v: %v\n", t.InjectedUrl, err)
+			printRed(os.Stderr, "error sending HTTP request to %v: %v\n", t.UrlInjection.InjectedUrl, err)
 		}
 		return
 	}
-
 	successfulRequestsSent += 1
+
+	heuristicsResponse := Response{}
+	baselineResponse := Response{}
+	if t.RuleData.Heuristics.Injection != "" {
+		// Check if the baseline URL has already been requested to avoid duplicate requests
+		if response, ok := responseCache[t.UrlInjection.BaselineUrl]; ok {
+			baselineResponse = response
+		} else {
+			baselineResponse, err = sendRequest(t.UrlInjection.BaselineUrl)
+			if err != nil {
+				failedRequestsSent += 1
+				if opts.Debug {
+					printRed(os.Stderr, "error sending HTTP request to %v: %v\n", t.UrlInjection.BaselineUrl, err)
+				}
+			}
+			successfulRequestsSent += 1
+		}
+
+		heuristicsResponse, err = sendRequest(t.UrlInjection.HeuristicsUrl)
+		if err != nil {
+			failedRequestsSent += 1
+			if opts.Debug {
+				printRed(os.Stderr, "error sending HTTP request to %v: %v\n", t.UrlInjection.HeuristicsUrl, err)
+			}
+		}
+		successfulRequestsSent += 1
+	}
 
 	// Send an update every 1,000 requests
 	if !opts.SilentMode {
@@ -248,7 +219,7 @@ func (t Task) execute() {
 		}
 	}
 
-	ruleEvaluation := runEvaluation(resp, t.RuleData, t.InjectedUrl, t.RuleName)
+	ruleEvaluation := t.RuleData.evaluate(resp, t.UrlInjection, t.RuleName, heuristicsResponse, baselineResponse)
 	if ruleEvaluation.Successful {
 		printGreen(ruleEvaluation.SuccessMessage)
 		if opts.ToSlack {
