@@ -199,7 +199,6 @@ func (t Task) execute() {
 			}
 			successfulRequestsSent += 1
 		}
-
 		heuristicsResponse, err = sendRequest(t.UrlInjection.HeuristicsUrl)
 		if err != nil {
 			failedRequestsSent += 1

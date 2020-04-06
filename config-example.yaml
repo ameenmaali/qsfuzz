@@ -15,13 +15,13 @@ rules:
   SqlInjectionCheck:
     description: Test for potential SQL injections by injecting characters to break SQL statements
     injections:
-      - "'"
+      - "[[originalvalue]]'"
       - )
     expectation:
       responseCodes:
         - 500
     heuristics:
-      injection: "''"
+      injection: "[[originalvalue]]''"
       baselineMatches:
         - "responseCode"
 
@@ -30,7 +30,7 @@ rules:
     extraParams:
       - "param"
     injections:
-      - '"><h2>asd</h2>'
+      - '[[originalvalue]]"><h2>asd</h2>'
     expectation:
       responseContents:
         - '<h2>asd</h2>'

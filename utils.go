@@ -178,16 +178,17 @@ func getInjectedUrls(u *url.URL, rule Rule) ([]UrlInjection, error) {
 
 	var expandedRuleInjections []string
 	for _, ruleInjection := range rule.Injections {
-		expandedRuleInjection := expandTemplatedValues(ruleInjection, u)
+		expandedRuleInjection, _ := expandTemplatedValues(ruleInjection, u, "", 0, nil)
 		expandedRuleInjections = append(expandedRuleInjections, expandedRuleInjection)
 	}
 
 	for _, injection := range expandedRuleInjections {
 		for qs, values := range queryStrings {
 			for index, val := range values {
+				_, expandedQs := expandTemplatedValues(injection, u, qs, index, queryStrings)
 				urlInjection := UrlInjection{BaselineUrl: u.String()}
 
-				queryStrings[qs][index] = injection
+				queryStrings[qs][index] = expandedQs[qs][index]
 
 				query, err := getInjectedQueryString(queryStrings)
 				if err != nil {
@@ -200,7 +201,10 @@ func getInjectedUrls(u *url.URL, rule Rule) ([]UrlInjection, error) {
 				urlInjection.InjectedUrl = u.String()
 
 				if rule.Heuristics.Injection != "" {
-					queryStrings[qs][index] = rule.Heuristics.Injection
+					queryStrings[qs][index] = val
+					heuristicsInjection, _ := expandTemplatedValues(rule.Heuristics.Injection, u, "", 0, queryStrings)
+					_, expandedQs := expandTemplatedValues(heuristicsInjection, u, qs, index, queryStrings)
+					queryStrings[qs][index] = expandedQs[qs][index]
 					query, err := getInjectedQueryString(queryStrings)
 					if err != nil {
 						if opts.Debug {
@@ -222,9 +226,9 @@ func getInjectedUrls(u *url.URL, rule Rule) ([]UrlInjection, error) {
 }
 
 // Makeshift templating check within the YAML files to allow for more dynamic config files
-func expandTemplatedValues(ruleInjection string, u *url.URL) string {
+func expandTemplatedValues(ruleInjection string, u *url.URL, qs string, index int, queryStrings url.Values) (string, url.Values) {
 	if !strings.Contains(ruleInjection, "[[") || !strings.Contains(ruleInjection, "]]") {
-		return ruleInjection
+		return ruleInjection, queryStrings
 	}
 
 	replacer := strings.NewReplacer(
@@ -233,7 +237,17 @@ func expandTemplatedValues(ruleInjection string, u *url.URL) string {
 		"[[path]]", url.QueryEscape(u.Path),
 	)
 
-	return replacer.Replace(ruleInjection)
+	if qs != "" {
+		replacer = strings.NewReplacer(
+			"[[fullurl]]", url.QueryEscape(u.String()),
+			"[[domain]]", u.Hostname(),
+			"[[path]]", url.QueryEscape(u.Path),
+			"[[originalvalue]]", queryStrings.Get(qs),
+		)
+		queryStrings.Set(qs, replacer.Replace(ruleInjection))
+	}
+
+	return replacer.Replace(ruleInjection), queryStrings
 }
 
 func getInjectedQueryString(injectedQs url.Values) (string, error) {
