@@ -133,7 +133,7 @@ func getUrlsFromFile() ([]string, error) {
 
 		queryStrings := u.Query()
 
-		// Only include URLs that have query strings
+		// Only include URLs that have query strings unless extra params are provided
 		if len(queryStrings) == 0 && !config.HasExtraParams {
 			continue
 		}
@@ -178,7 +178,7 @@ func getInjectedUrls(u *url.URL, rule Rule) ([]UrlInjection, error) {
 
 	var expandedRuleInjections []string
 	for _, ruleInjection := range rule.Injections {
-		expandedRuleInjection, _ := expandTemplatedValues(ruleInjection, u, "", 0, nil)
+		expandedRuleInjection := expandInjectionTemplates(ruleInjection, u)
 		expandedRuleInjections = append(expandedRuleInjections, expandedRuleInjection)
 	}
 
@@ -189,7 +189,7 @@ func getInjectedUrls(u *url.URL, rule Rule) ([]UrlInjection, error) {
 				if index > 0 {
 					continue
 				}
-				_, expandedQs := expandTemplatedValues(injection, u, qs, index, queryStrings)
+				expandedQs := expandQsValueTemplates(injection, qs, queryStrings)
 				urlInjection := UrlInjection{BaselineUrl: u.String()}
 				queryStrings[qs][index] = expandedQs[qs][index]
 				query, err := getInjectedQueryString(queryStrings)
@@ -198,14 +198,13 @@ func getInjectedUrls(u *url.URL, rule Rule) ([]UrlInjection, error) {
 						printRed(os.Stderr, "Error decoding parameters: ", err)
 					}
 				}
-
 				u.RawQuery = query
 				urlInjection.InjectedUrl = u.String()
 
 				if rule.Heuristics.Injection != "" {
 					queryStrings[qs][index] = val
-					heuristicsInjection, _ := expandTemplatedValues(rule.Heuristics.Injection, u, "", 0, queryStrings)
-					_, expandedQs := expandTemplatedValues(heuristicsInjection, u, qs, index, queryStrings)
+					heuristicsInjection := expandInjectionTemplates(rule.Heuristics.Injection, u)
+					expandedQs := expandQsValueTemplates(heuristicsInjection, qs, queryStrings)
 					queryStrings[qs][index] = expandedQs[qs][index]
 					query, err := getInjectedQueryString(queryStrings)
 					if err != nil {
@@ -228,9 +227,9 @@ func getInjectedUrls(u *url.URL, rule Rule) ([]UrlInjection, error) {
 }
 
 // Makeshift templating check within the YAML files to allow for more dynamic config files
-func expandTemplatedValues(ruleInjection string, u *url.URL, qs string, index int, queryStrings url.Values) (string, url.Values) {
+func expandInjectionTemplates(ruleInjection string, u *url.URL) (string) {
 	if !strings.Contains(ruleInjection, "[[") || !strings.Contains(ruleInjection, "]]") {
-		return ruleInjection, queryStrings
+		return ruleInjection
 	}
 
 	replacer := strings.NewReplacer(
@@ -239,17 +238,16 @@ func expandTemplatedValues(ruleInjection string, u *url.URL, qs string, index in
 		"[[path]]", url.QueryEscape(u.Path),
 	)
 
-	if qs != "" {
-		replacer = strings.NewReplacer(
-			"[[fullurl]]", url.QueryEscape(u.String()),
-			"[[domain]]", u.Hostname(),
-			"[[path]]", url.QueryEscape(u.Path),
-			"[[originalvalue]]", queryStrings.Get(qs),
-		)
-		queryStrings.Set(qs, replacer.Replace(ruleInjection))
-	}
+	return replacer.Replace(ruleInjection)
+}
 
-	return replacer.Replace(ruleInjection), queryStrings
+func expandQsValueTemplates(ruleInjection string, qs string, queryStrings url.Values) url.Values {
+	replacer := strings.NewReplacer(
+		"[[originalvalue]]", queryStrings.Get(qs),
+	)
+	queryStrings.Set(qs, replacer.Replace(ruleInjection))
+	return queryStrings
+
 }
 
 func getInjectedQueryString(injectedQs url.Values) (string, error) {
