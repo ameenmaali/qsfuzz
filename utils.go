@@ -185,11 +185,13 @@ func getInjectedUrls(u *url.URL, rule Rule) ([]UrlInjection, error) {
 	for _, injection := range expandedRuleInjections {
 		for qs, values := range queryStrings {
 			for index, val := range values {
+				// Only care about the first qs value if there's more than one of the same qs
+				if index > 0 {
+					continue
+				}
 				_, expandedQs := expandTemplatedValues(injection, u, qs, index, queryStrings)
 				urlInjection := UrlInjection{BaselineUrl: u.String()}
-
 				queryStrings[qs][index] = expandedQs[qs][index]
-
 				query, err := getInjectedQueryString(queryStrings)
 				if err != nil {
 					if opts.Debug {
