@@ -11,27 +11,6 @@ import (
 	"time"
 )
 
-type CliOptions struct {
-	ConfigFile    string
-	Cookies       string
-	Headers       string
-	Debug         bool
-	Concurrency   int
-	DecodedParams bool
-	SilentMode    bool
-	Timeout       int
-	ToSlack       bool
-}
-
-type Config struct {
-	Rules          map[string]Rule   `mapstructure:"rules"`
-	Slack          map[string]string `mapstructure:"slack"`
-	Cookies        string
-	Headers        map[string]string
-	httpClient     *http.Client
-	HasExtraParams bool
-}
-
 type Rule struct {
 	Description string           `mapstructure:"description"`
 	Injections  []string         `mapstructure:"injections"`
