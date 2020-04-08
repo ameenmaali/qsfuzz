@@ -56,7 +56,7 @@ slack:
 You can have as many rules as you'd like (of course this will slow down evaluations). These are the currently supported fields,
 annotated with comments above the field:
 
-```
+```yaml
 # This should never change, and indicates the start of the rules list
 rules:
   # This should be set to the rule's name you are defining
@@ -112,7 +112,7 @@ For the `expectation` section, 3 types of matching are supported: `responseConte
 
 Take the following example:
 
-```
+```yaml
 rules:
   XssDetection:
     description: This rule checks for reflected parameters
@@ -141,7 +141,7 @@ being assessed at that point in time):
 
 An example on using these are:
 
-```
+```yaml
 rules:
   CallbackFuzz:
     description: Test for open redirects and potential SSRFs by checking for certain responses or callbacks to your server
@@ -166,7 +166,7 @@ Including a `heuristics` key in your config file is optional. It will do a coupl
 
 Take the following example:
 
-```
+```yaml
 SqlInjectionCheck:
   description: Test for potential SQL injections by injecting characters to break SQL statements
   injections:
@@ -198,7 +198,7 @@ Currently, the supported `baselineMatches` are:
 qsfuzz also supports sending positive matches to Slack. This can be done by adding in the following Slack Config in your config.yaml file.
 This should be done as a separate key from `rules` (see above example), which is the `slack` key:
 
-```
+```yaml
 slack:
   channel: "#channel-name"
   botToken: "MY-BOT-TOKEN"
