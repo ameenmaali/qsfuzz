@@ -60,9 +60,9 @@ func getInjectedUrls(u *url.URL, rule Rule) ([]UrlInjection, error) {
 	var urlInjections []UrlInjection
 
 	// Get extra rule injections if exists
-	if len(rule.ExtraParams) != 0 && len(queryStrings) == 0 {
+	if len(rule.ExtraParams) != 0 {
 		for _, param := range rule.ExtraParams {
-			if len(queryStrings[param]) != 0 {
+			if len(queryStrings[param]) == 0 {
 				queryStrings.Add(param, "")
 			}
 		}
