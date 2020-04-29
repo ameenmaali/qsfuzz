@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/EDDYCJY/fake-useragent"
 )
 
 func createClient() {
@@ -33,7 +35,7 @@ func sendRequest(u string) (Response, error) {
 		return response, err
 	}
 
-	request.Header.Add("User-Agent", "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.100 Safari/537.36")
+	request.Header.Add("User-Agent", browser.Random())
 
 	// Add headers passed in as arguments
 	for header, value := range config.Headers {
