@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const Version = "1.0.1"
+const Version = "1.0.2"
 
 type CliOptions struct {
 	ConfigFile    string
