@@ -227,6 +227,10 @@ Usage of qsfuzz:
     	Send requests with decoded query strings/parameters (this could cause many errors/bad requests)
   -headers string
     	Headers to add in all requests. Multiple should be separated by semi-colon
+  -no-redirects
+    	Do not follow redirects for HTTP requests (default is true, redirects are followed)
+  -nr
+    	Do not follow redirects for HTTP requests (default is true, redirects are followed)
   -s	
         Only print successful evaluations (i.e. mute status updates). Note these updates print to stderr, and won't be saved if saving stdout to files
   -silent
@@ -239,6 +243,8 @@ Usage of qsfuzz:
     	Send positive matches to Slack (must have Slack key properly setup in config file)
   -ts
     	Send positive matches to Slack (must have Slack key properly setup in config file)
+  -version
+    	Get the current version of qsfuzz
   -w int
     	Set the concurrency/worker count (default 25)
   -workers int
