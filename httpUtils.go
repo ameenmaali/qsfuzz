@@ -20,8 +20,16 @@ func createClient() {
 		}).DialContext,
 	}
 
+	redirect := func(req *http.Request, via []*http.Request) error {
+		if opts.NoRedirects {
+			return http.ErrUseLastResponse
+		}
+		return nil
+	}
+
 	httpClient := &http.Client{
 		Transport: transport,
+		CheckRedirect: redirect,
 		Timeout:   time.Duration(opts.Timeout+3) * time.Second,
 	}
 	config.httpClient = httpClient

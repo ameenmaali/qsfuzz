@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-const Version = "1.0.2"
+const Version = "1.0.3"
 
 type CliOptions struct {
 	ConfigFile    string
@@ -23,6 +23,7 @@ type CliOptions struct {
 	Timeout       int
 	ToSlack       bool
 	Version       bool
+	NoRedirects   bool
 }
 
 type Config struct {
@@ -61,6 +62,9 @@ func verifyFlags(options *CliOptions) error {
 	flag.BoolVar(&options.ToSlack, "to-slack", false, "Send positive matches to Slack (must have Slack key properly setup in config file)")
 
 	flag.BoolVar(&options.Version, "version", false, "Get the current version of qsfuzz")
+
+	flag.BoolVar(&options.NoRedirects, "nr", false, "Do not follow redirects for HTTP requests (default is true, redirects are followed)")
+	flag.BoolVar(&options.NoRedirects, "no-redirects", false, "Do not follow redirects for HTTP requests (default is true, redirects are followed)")
 
 	flag.Parse()
 

@@ -119,7 +119,7 @@ func getInjectedUrls(u *url.URL, rule Rule) ([]UrlInjection, error) {
 }
 
 // Makeshift templating check within the YAML files to allow for more dynamic config files
-func expandInjectionTemplates(ruleInjection string, u *url.URL) (string) {
+func expandInjectionTemplates(ruleInjection string, u *url.URL) string {
 	if !strings.Contains(ruleInjection, "[[") || !strings.Contains(ruleInjection, "]]") {
 		return ruleInjection
 	}
