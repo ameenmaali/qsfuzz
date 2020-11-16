@@ -122,7 +122,7 @@ func main() {
 			// If URL can't be parsed, ignore and move on
 			if err != nil {
 				if opts.Debug {
-					printRed(os.Stderr, "[%v] error parsing URL or query parameters for\n", rule)
+					printRed(os.Stderr, "[%v] error parsing URL or query parameters for %v\n", rule, u)
 				}
 				continue
 			}
@@ -130,7 +130,7 @@ func main() {
 			injectedUrls, err := getInjectedUrls(fullUrl, ruleData)
 			if err != nil {
 				if opts.Debug {
-					printRed(os.Stderr, "[%v] error parsing URL or query parameters for\n", rule)
+					printRed(os.Stderr, "[%v] error parsing URL or query parameters for %v\n", rule, u)
 				}
 				continue
 			}
