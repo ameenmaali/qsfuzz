@@ -180,10 +180,6 @@ func (r *Rule) evaluateContentLength(responseLength int, heuristicsResponse Resp
 			// This is a false positive. If the heuristics response, baseline response, and injected response all have the same length
 			// It is not an indication of vulnerable functionality
 			if heuristicsMatch := isLengthWithinTenPercent(baselineResponse.ContentLength, responseLength); heuristicsMatch {
-				fmt.Println(baselineResponse.ContentLength)
-				fmt.Println(responseLength)
-				fmt.Println(heuristicsResponse.ContentLength)
-
 				return false
 			}
 
