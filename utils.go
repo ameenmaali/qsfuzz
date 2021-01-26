@@ -160,7 +160,13 @@ func getInjectedQueryString(injectedQs url.Values) (string, error) {
 }
 
 func isLengthWithinTenPercent(expectedLength int, responseLength int) bool {
+	// Cannot divide by 0 if empty response
+	if responseLength == 0 {
+		return false
+	}
+
 	diff := int(math.Abs(float64(expectedLength) - float64(responseLength)))
+
 	// Check if the diff is less than 10%, if so, consider a positive match
 	if (diff/responseLength)*100 <= 10 {
 		return true

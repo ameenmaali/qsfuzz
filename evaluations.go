@@ -16,32 +16,32 @@ func (r *Rule) evaluate(resp Response, urlInjection UrlInjection, ruleName strin
 	lengthExpected := false
 	heuristicsExpected := map[string]bool{"responsecode": false, "responselength": false, "responsecontent": false, "responseheader": false}
 
+	for _, match := range r.Heuristics.BaselineMatches {
+		heuristicsExpected[strings.ToLower(match)] = true
+	}
+
 	numOfChecks := 0
 
 	var ruleEvaluation RuleEvaluation
 
-	if r.Expectation.Headers != nil {
+	if r.Expectation.Headers != nil  || heuristicsExpected["responseheader"] {
 		headersExpected = true
 		numOfChecks += 1
 	}
 
-	if r.Expectation.Contents != nil {
+	if r.Expectation.Contents != nil  || heuristicsExpected["responsecontent"] {
 		bodyExpected = true
 		numOfChecks += 1
 	}
 
-	if r.Expectation.Codes != nil {
+	if r.Expectation.Codes != nil  || heuristicsExpected["responsecode"] {
 		codeExpected = true
 		numOfChecks += 1
 	}
 
-	if r.Expectation.Lengths != nil {
+	if r.Expectation.Lengths != nil  || heuristicsExpected["responselength"] {
 		lengthExpected = true
 		numOfChecks += 1
-	}
-
-	for _, match := range r.Heuristics.BaselineMatches {
-		heuristicsExpected[strings.ToLower(match)] = true
 	}
 
 	if bodyExpected {
@@ -92,6 +92,17 @@ func (r *Rule) evaluate(resp Response, urlInjection UrlInjection, ruleName strin
 }
 
 func (r *Rule) evaluateContent(responseContent string, heuristicsResponse Response, baselineResponse Response, heuristicExpected bool) bool {
+	if heuristicExpected && len(r.Expectation.Contents) == 0 {
+		if heuristicsResponse.Body == baselineResponse.Body {
+			// This is a false positive. If the heuristics response, baseline response, and injected response all have the same response content
+			// It is not an indication of vulnerable functionality
+			if baselineResponse.Body == responseContent {
+				return false
+			}
+			return true
+		}
+	}
+
 	for _, content := range r.Expectation.Contents {
 		if strings.Contains(strings.ToLower(responseContent), strings.ToLower(content)) {
 			if !heuristicExpected {
@@ -99,6 +110,11 @@ func (r *Rule) evaluateContent(responseContent string, heuristicsResponse Respon
 			}
 
 			if heuristicsResponse.Body == baselineResponse.Body {
+				// This is a false positive. If the heuristics response, baseline response, and injected response all have the same response content
+				// It is not an indication of vulnerable functionality
+				if baselineResponse.Body == responseContent {
+					return false
+				}
 				return true
 			}
 		}
@@ -122,6 +138,17 @@ func (r *Rule) evaluateHeaders(responseHeaders http.Header, heuristicsResponse R
 }
 
 func (r *Rule) evaluateStatusCode(responseCode int, heuristicsResponse Response, baselineResponse Response, heuristicExpected bool) bool {
+	if heuristicExpected && len(r.Expectation.Codes) == 0 {
+		if heuristicsResponse.StatusCode == baselineResponse.StatusCode {
+			// This is a false positive. If the heuristics response, baseline response, and injected response all have the same code
+			// It is not an indication of vulnerable functionality
+			if baselineResponse.StatusCode == responseCode {
+				return false
+			}
+			return true
+		}
+	}
+
 	for _, code := range r.Expectation.Codes {
 		statusCode, err := strconv.Atoi(code)
 		if err != nil {
@@ -147,6 +174,23 @@ func (r *Rule) evaluateStatusCode(responseCode int, heuristicsResponse Response,
 }
 
 func (r *Rule) evaluateContentLength(responseLength int, heuristicsResponse Response, baselineResponse Response, heuristicExpected bool) bool {
+	if heuristicExpected && len(r.Expectation.Lengths) == 0 {
+		if heuristicsMatch := isLengthWithinTenPercent(heuristicsResponse.ContentLength, baselineResponse.ContentLength); heuristicsMatch {
+
+			// This is a false positive. If the heuristics response, baseline response, and injected response all have the same length
+			// It is not an indication of vulnerable functionality
+			if heuristicsMatch := isLengthWithinTenPercent(baselineResponse.ContentLength, responseLength); heuristicsMatch {
+				fmt.Println(baselineResponse.ContentLength)
+				fmt.Println(responseLength)
+				fmt.Println(heuristicsResponse.ContentLength)
+
+				return false
+			}
+
+			return true
+		}
+	}
+
 	for _, length := range r.Expectation.Lengths {
 		expectedLength, err := strconv.Atoi(length)
 		if err != nil {
@@ -157,10 +201,16 @@ func (r *Rule) evaluateContentLength(responseLength int, heuristicsResponse Resp
 			if !heuristicExpected {
 				return true
 			}
+		}
 
-			if heuristicsMatch := isLengthWithinTenPercent(heuristicsResponse.ContentLength, baselineResponse.ContentLength); heuristicsMatch {
-				return true
+		if heuristicsMatch := isLengthWithinTenPercent(heuristicsResponse.ContentLength, baselineResponse.ContentLength); heuristicsMatch {
+			// This is a false positive. If the heuristics response, baseline response, and injected response all have the same length
+			// It is not an indication of vulnerable functionality
+			if heuristicsMatch := isLengthWithinTenPercent(baselineResponse.ContentLength, responseLength); heuristicsMatch {
+				return false
 			}
+
+			return true
 		}
 	}
 	return false
