@@ -87,6 +87,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	if len(opts.Proxy) > 0 {
+		_, err := url.Parse(opts.Proxy)
+		if err == nil {
+			fmt.Println("Proxy doesn't respect url format:", err)
+			os.Exit(1)
+		}
+	}
+
 	urls, err := getUrlsFromFile()
 	if err != nil {
 		fmt.Println(err)

@@ -16,6 +16,7 @@ type CliOptions struct {
 	ConfigFile    string
 	Cookies       string
 	Headers       string
+	Proxy         string
 	Debug         bool
 	Concurrency   int
 	DecodedParams bool
@@ -40,10 +41,10 @@ func verifyFlags(options *CliOptions) error {
 	flag.StringVar(&options.ConfigFile, "config", "", "File path to config file, which contains fuzz rules")
 
 	flag.StringVar(&options.Cookies, "cookies", "", "Cookies to add in all requests")
-
 	flag.StringVar(&options.Headers, "H", "", "Headers to add in all requests. Multiple should be separated by semi-colon")
 	flag.StringVar(&options.Headers, "headers", "", "Headers to add in all requests. Multiple should be separated by semi-colon")
 
+	flag.StringVar(&options.Proxy, "proxy", "", "set proxy url example: http://127.0.0.1:8080")
 	flag.BoolVar(&options.Debug, "debug", false, "Debug/verbose mode to print more info for failed/malformed URLs or requests")
 
 	flag.BoolVar(&options.SilentMode, "s", false, "Only print successful evaluations (i.e. mute status updates). Note these updates print to stderr, and won't be saved if saving stdout to files")

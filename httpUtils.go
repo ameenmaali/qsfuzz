@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/EDDYCJY/fake-useragent"
@@ -20,6 +21,11 @@ func createClient() {
 		}).DialContext,
 	}
 
+	if len(opts.Proxy) > 0 {
+		proxyUrl, _ := url.Parse(opts.Proxy)
+		transport.Proxy = http.ProxyURL(proxyUrl)
+	}
+
 	redirect := func(req *http.Request, via []*http.Request) error {
 		if opts.NoRedirects {
 			return http.ErrUseLastResponse
@@ -28,10 +34,11 @@ func createClient() {
 	}
 
 	httpClient := &http.Client{
-		Transport: transport,
+		Transport:     transport,
 		CheckRedirect: redirect,
-		Timeout:   time.Duration(opts.Timeout+3) * time.Second,
+		Timeout:       time.Duration(opts.Timeout+3) * time.Second,
 	}
+
 	config.httpClient = httpClient
 }
 
