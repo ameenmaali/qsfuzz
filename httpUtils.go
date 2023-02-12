@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/tls"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -23,11 +22,7 @@ func createClient() {
 	}
 
 	if len(opts.Proxy) > 0 {
-		proxyUrl, err := url.Parse(opts.Proxy)
-		if err != nil {
-			log.Fatalf("Error parsing proxy URL: %v", err)
-		}
-
+		proxyUrl, _ := url.Parse(opts.Proxy)
 		transport.Proxy = http.ProxyURL(proxyUrl)
 	}
 
